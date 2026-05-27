@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <meta name="title"
+    content="Balancing Fidelity and Diversity in Diffusion Models via Symmetric Attention Decomposition: Hopfield Perspective">
+  <meta name="description"
+    content="A Hopfield-style decomposition of the attention matrix QK^T into symmetric (energy) and skew-symmetric (circulation) components, with a training-free circulation knob that breaks metastable mixtures in diffusion sampling.">
+  <meta name="keywords"
+    content="diffusion models, attention, Hopfield network, associative memory, fidelity-diversity trade-off, ICML 2026">
+  <meta name="author" content="Hyunmin Cho, Woo Kyoung Han, Kyong Hwan Jin">
+  <meta name="robots" content="index, follow">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Symmetric Attention Decomposition — Project Page">
+  <meta property="og:title"
+    content="Balancing Fidelity and Diversity in Diffusion Models via Symmetric Attention Decomposition: Hopfield Perspective">
+  <meta property="og:description"
+    content="A Hopfield-style decomposition of QK^T into energy + circulation, with a training-free knob for the fidelity-diversity trade-off.">
+  <meta property="og:image" content="static/images/teaser_top.png">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Symmetric Attention Decomposition — Hopfield Perspective">
+  <meta name="twitter:description"
+    content="A Hopfield-style decomposition of QK^T into energy + circulation for diffusion sampling.">
+  <meta name="twitter:image" content="static/images/teaser_top.png">
+
+  <meta name="citation_title"
+    content="Balancing Fidelity and Diversity in Diffusion Models via Symmetric Attention Decomposition: Hopfield Perspective">
+  <meta name="citation_author" content="Cho, Hyunmin">
+  <meta name="citation_author" content="Han, Woo Kyoung">
+  <meta name="citation_author" content="Jin, Kyong Hwan">
+  <meta name="citation_publication_date" content="2026">
+  <meta name="citation_conference_title" content="ICML">
+
+  <meta name="theme-color" content="#17357a">
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+
+  <title>Symmetric Attention Decomposition | ICML 2026</title>
+
+  <link rel="stylesheet" href="static/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+  <link rel="stylesheet" href="static/css/inter.css">
+  <link rel="preload" href="static/css/fontawesome.all.min.css" as="style"
+    onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="static/css/academicons.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript>
+    <link rel="stylesheet" href="static/css/fontawesome.all.min.css">
+    <link rel="stylesheet" href="static/css/academicons.min.css">
+  </noscript>
+
+  <script defer src="static/js/jquery.min.js"></script>
+  <script defer src="static/js/fontawesome.all.min.js"></script>
+  <script defer src="static/js/index.js"></script>
+
+  <!-- MathJax for inline math -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+  <style>
+    .tldr-box {
+      background: #f5f7fb;
+      border-left: 4px solid #17357a;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      border-radius: 4px;
+    }
+
+    .tldr-box strong {
+      color: #17357a;
+    }
+
+    .equation-box {
+      background: #fafbfc;
+      border: 1px solid #e5e8ee;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+
+    /* Teaser layout: large top image + 5-panel row + arrow */
+    .teaser-top {
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .teaser-top img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+
+    .teaser-panels {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: center;
+      align-items: flex-start;     /* stop the columns from stretching to a common height */
+      gap: 4px;
+      margin-top: 0.25rem;
+    }
+
+    .teaser-panels .panel {
+      flex: 1 1 0;
+      max-width: 18.5%;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .teaser-panels .panel img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 2px;
+    }
+
+    .teaser-panels .panel .ico {
+      font-size: 0.8rem;
+      color: #555;
+      margin-top: 0.2rem;
+      line-height: 1.2;
+      white-space: nowrap;          /* keep "☺ div   ☹ fid" on one line */
+    }
+
+    .ico-good {
+      color: #28a745;
+    }
+
+    .ico-bad {
+      color: #e34c4c;
+    }
+
+    .teaser-arrow {
+      margin: 0.6rem auto 0;
+      max-width: 80%;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: #444;
+      font-weight: 500;
+    }
+
+    .teaser-arrow .line {
+      flex: 1;
+      align-self: center;
+      height: 1px;
+      background: #333;
+      margin: 0 0.5rem;
+      position: relative;
+    }
+
+    .teaser-arrow .line::before,
+    .teaser-arrow .line::after {
+      content: '';
+      position: absolute;
+      top: -3px;
+      width: 0;
+      height: 0;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+    }
+
+    .teaser-arrow .line::before {
+      left: 0;
+      border-right: 6px solid #333;
+    }
+
+    .teaser-arrow .line::after {
+      right: 0;
+      border-left: 6px solid #333;
+    }
+
+    .section-tight {
+      padding-top: 2rem;
+      padding-bottom: 2rem;
+    }
+
+    /* Result tables */
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 0.5rem 0 0.25rem;
+      background: #fff;
+    }
+
+    .result-table th,
+    .result-table td {
+      padding: 0.4rem 0.55rem;
+      text-align: right;
+      border-bottom: 1px solid #e5e8ee;
+    }
+
+    .result-table th:first-child,
+    .result-table td:first-child {
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .result-table thead th {
+      border-top: 2px solid #17357a;
+      border-bottom: 1.5px solid #17357a;
+      font-weight: 600;
+      background: #f5f7fb;
+      color: #17357a;
+    }
+
+    .result-table tbody tr.stable-row {
+      background: #eaf3ff;
+    }
+
+    .result-table tbody tr.unstable-row {
+      background: #ffeef0;
+    }
+
+    .result-table tbody tr.method-row {
+      background: #ffeef0;
+    }
+
+    .result-table tbody tr:last-child td {
+      border-bottom: 2px solid #17357a;
+    }
+
+    .delta-up {
+      color: #1f7a3c;
+      font-weight: 600;
+    }
+
+    .delta-down {
+      color: #b32d2d;
+      font-weight: 600;
+    }
+
+    .table-caption {
+      font-size: 0.82rem;
+      color: #666;
+      text-align: center;
+      margin: 0.25rem 0 1rem;
+      font-style: italic;
+    }
+
+    /* Wide correlation table (Table 1) */
+    .corr-wrap {
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+
+    .corr-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.82rem;
+      background: #fff;
+      min-width: 720px;
+    }
+
+    .corr-table th,
+    .corr-table td {
+      padding: 0.32rem 0.5rem;
+      text-align: center;
+      border: 0;
+    }
+
+    .corr-table thead tr:first-child th {
+      border-top: 2px solid #17357a;
+      border-bottom: 1px solid #c5cad4;
+      background: #f5f7fb;
+      color: #17357a;
+      font-weight: 600;
+    }
+
+    .corr-table thead tr:nth-child(2) th {
+      border-bottom: 1.5px solid #17357a;
+      background: #fafbfc;
+      color: #17357a;
+      font-weight: 500;
+      font-size: 0.78rem;
+    }
+
+    .corr-table tbody td:first-child {
+      text-align: left;
+      font-weight: 600;
+      color: #333;
+      white-space: nowrap;
+      border-right: 1px solid #c5cad4;
+    }
+
+    .corr-table tbody td {
+      border-bottom: 1px solid #eef0f4;
+    }
+
+    .corr-table tbody tr:last-child td {
+      border-bottom: 2px solid #17357a;
+    }
+
+    .pos-strong {
+      background: #d8e6ff;
+      font-weight: 600;
+      color: #17357a;
+    }
+
+    .neg-strong {
+      background: #ffd9de;
+      font-weight: 600;
+      color: #8a1a1a;
+    }
+
+    .corr-table thead tr:first-child th+th {
+      border-left: 1px solid #c5cad4;
+    }
+
+    .corr-table tbody td:nth-child(5),
+    .corr-table tbody td:nth-child(8),
+    .corr-table tbody td:nth-child(11) {
+      border-left: 1px solid #c5cad4;
+    }
+
+    .corr-legend {
+      font-size: 0.82rem;
+      color: #555;
+      margin-top: 0.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      justify-content: center;
+    }
+
+    .corr-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .corr-legend .swatch {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 2px;
+      vertical-align: middle;
+    }
+
+    /* Concept image */
+    .concept-fig {
+      text-align: center;
+      margin: 1rem 0 0.5rem;
+    }
+
+    .concept-fig img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+
+    .concept-caption {
+      font-size: 0.88rem;
+      color: #555;
+      margin-top: 0.6rem;
+      text-align: left;
+    }
+
+    /* Qualitative grid (Figure 6) — 5 + 5 layout */
+    .qual-wrap {
+      overflow-x: auto;
+      margin: 1.25rem 0 0.5rem;
+    }
+
+    .qual-table {
+      border-collapse: collapse;
+      margin: 0 auto;
+    }
+
+    .qual-table td,
+    .qual-table th {
+      padding: 0;
+      vertical-align: middle;
+      border: 0;
+    }
+
+    .content .qual-table td.qcell {
+      width: 90px;
+      height: 90px;
+      padding: 0;
+    }
+
+    .content .qual-table td.qcell img {
+      display: block;
+      width: 90px;
+      height: 90px;
+      max-width: 90px;
+      max-height: 90px;
+      object-fit: cover;
+      border-radius: 0;
+      margin: 0;
+    }
+
+    .qual-row-label {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      white-space: nowrap;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0 0.55rem;
+      text-align: center;
+      color: #17357a;
+      min-width: 1.3rem;
+    }
+
+    .qual-table td.qual-divider {
+      width: 18px;
+      min-width: 18px;
+    }
+
+    .qual-group-row td {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: #555;
+      padding: 0.45rem 0.2rem 0;
+      text-align: center;
+      border-top: 1px solid #e5e8ee;
+    }
+
+    .qual-caption {
+      font-size: 0.88rem;
+      color: #555;
+      margin-top: 0.6rem;
+      text-align: left;
+    }
+
+    @media (min-width: 1024px) {
+
+      .content .qual-table td.qcell,
+      .content .qual-table td.qcell img {
+        width: 100px;
+        height: 100px;
+        max-width: 100px;
+        max-height: 100px;
+      }
+    }
+
+    @media (max-width: 768px) {
+
+      .content .qual-table td.qcell,
+      .content .qual-table td.qcell img {
+        width: 68px;
+        height: 68px;
+        max-width: 68px;
+        max-height: 68px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <button class="scroll-to-top" onclick="scrollToTop()" title="Scroll to top" aria-label="Scroll to top">
+    <i class="fas fa-chevron-up"></i>
+  </button>
+
+  <main id="main-content">
+
+    <!-- ============================== HERO ============================== -->
+    <section class="hero">
+      <div class="hero-body">
+        <div class="container is-max-desktop">
+          <div class="columns is-centered">
+            <div class="column has-text-centered">
+
+              <h1 class="title is-2 publication-title">Balancing Fidelity and Diversity in Diffusion Models<br>via
+                Symmetric Attention Decomposition:&nbsp;<span style="color:#8b1a1a;">Hopfield Perspective</span></h1>
+
+              <div class="is-size-5 publication-authors" style="margin-top: 1rem;">
+                <span class="author-block">
+                  <a href="https://github.com/hyeon-cho" target="_blank">Hyunmin Cho</a><sup>1</sup>,</span>
+                <span class="author-block">
+                  Woo Kyoung Han<sup>1</sup>,</span>
+                <span class="author-block">
+                  <a href="https://ipa.korea.ac.kr/" target="_blank">Kyong Hwan Jin</a><sup>1&dagger;</sup></span>
+              </div>
+
+              <div class="is-size-6 publication-authors" style="margin-top: 0.4rem;">
+                <span class="author-block"><sup>1</sup>Department of Electrical Engineering, Korea University, Seoul,
+                  South Korea</span>
+                <br>
+                <span class="eql-cntrb"><small><sup>&dagger;</sup>Corresponding author</small></span>
+              </div>
+
+              <div class="is-size-5" style="margin-top: 0.6rem; color: #555;">
+                <strong>ICML 2026</strong>
+              </div>
+
+              <div class="column has-text-centered" style="margin-top: 1rem;">
+                <div class="publication-links">
+
+                  <span class="link-block">
+                    <a href="18925_Balancing_Fidelity_and_D.pdf" target="_blank"
+                      class="external-link button is-normal is-rounded is-dark">
+                      <span class="icon"><i class="fas fa-file-pdf"></i></span>
+                      <span>Paper</span>
+                    </a>
+                  </span>
+
+                  <span class="link-block">
+                    <a href="https://github.com/hyeon-cho/Attention-Symmetric-Decomposition" target="_blank"
+                      class="external-link button is-normal is-rounded is-dark">
+                      <span class="icon"><i class="fab fa-github"></i></span>
+                      <span>Code</span>
+                    </a>
+                  </span>
+
+                  <span class="link-block">
+                    <a href="#BibTeX" class="external-link button is-normal is-rounded is-dark">
+                      <span class="icon"><i class="ai ai-google-scholar"></i></span>
+                      <span>BibTeX</span>
+                    </a>
+                  </span>
+
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== TEASER ============================== -->
+    <section class="hero teaser">
+      <div class="container is-max-desktop">
+        <div class="hero-body">
+          <div class="teaser-top">
+            <img src="static/images/teaser_top.png"
+              alt="Decomposition of QK^T into symmetric (energy) and skew (circulation) components" />
+          </div>
+          <div class="teaser-panels">
+            <div class="panel">
+              <img src="static/images/teaser_l1.jpg" alt="Low-circulation sample 1" />
+              <div class="ico"><span class="ico-bad">&#9785;</span> div &nbsp;&nbsp; <span
+                  class="ico-good">&#9786;</span> fid</div>
+            </div>
+            <div class="panel">
+              <img src="static/images/teaser_l2.jpg" alt="Low-circulation sample 2" />
+              <div class="ico"><span class="ico-bad">&#9785;</span> div &nbsp;&nbsp; <span
+                  class="ico-bad">&#9785;</span> fid</div>
+            </div>
+            <div class="panel">
+              <img src="static/images/teaser_l3.jpg" alt="Moderate-circulation sample" />
+              <div class="ico"><span class="ico-good">&#9786;</span> div &nbsp;&nbsp; <span
+                  class="ico-good">&#9786;</span> fid</div>
+            </div>
+            <div class="panel">
+              <img src="static/images/teaser_l4.jpg" alt="Moderate-circulation sample" />
+              <div class="ico"><span class="ico-good">&#9786;</span> div &nbsp;&nbsp; <span
+                  class="ico-good">&#9786;</span> fid</div>
+            </div>
+            <div class="panel">
+              <img src="static/images/teaser_l5.jpg" alt="High-circulation sample" />
+              <div class="ico"><span class="ico-good">&#9786;</span> div &nbsp;&nbsp; <span
+                  class="ico-bad">&#9785;</span> fid</div>
+            </div>
+          </div>
+          <div class="teaser-arrow">
+            <span>Low $\mathbf{E}$ (Stable)</span>
+            <span class="line"></span>
+            <span>High $\mathbf{E}$ (Unstable)</span>
+          </div>
+          <p class="has-text-centered" style="margin-top: 0.9rem; color: #555; font-size: 0.93rem;">
+            We decompose the pre-softmax attention $\mathbf{Q}\mathbf{K}^\top$ into a <strong>symmetric</strong> part
+            (Hopfield-style energy landscape) and a <strong>skew-symmetric</strong> part (circulation).
+            Moderate skew perturbation breaks <em>metastable mixtures</em> while preserving stable retrievals;
+            excessive perturbation destabilizes everything.
+            Icons: <span class="ico-good">&#9786;</span>/<span class="ico-bad">&#9785;</span> denote positive/negative
+            diversity (div) and fidelity (fid).
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== ABSTRACT ============================== -->
+    <section class="section hero is-light section-tight">
+      <div class="container is-max-desktop">
+        <div class="columns is-centered has-text-centered">
+          <div class="column is-four-fifths">
+            <h2 class="title is-3">Abstract</h2>
+            <div class="content has-text-justified">
+              <p>
+                We characterize the pre-softmax attention matrix $\mathbf{Q}\mathbf{K}^\top$ in transformers as
+                an <em>associative memory matrix</em> encoding pairwise associations between input features.
+                By decomposing this matrix into its <strong>symmetric</strong> and <strong>skew-symmetric</strong>
+                parts, we interpret the symmetric component as governing the structure of the
+                <em>energy landscape</em>, and the skew-symmetric component as driving <em>circulation</em>
+                on that landscape. Leveraging the energy formulation induced by the symmetric component, we
+                derive <strong>Hopfield-style stability measures</strong> that quantify the stability of
+                retrieved features. We observe meaningful correlations between these measures and the
+                fidelity&ndash;diversity trade-off in generation. Finally, we propose a controllable knob
+                to modulate this trade-off by modifying the circulation of the underlying dynamics.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== TL;DR ============================== -->
+    <section class="section section-tight">
+      <div class="container is-max-desktop">
+        <div class="tldr-box">
+          <strong>TL;DR&nbsp;—</strong> The pre-softmax attention $\mathbf{Q}\mathbf{K}^\top$ is an
+          <strong>associative memory</strong>. Its <em>symmetric</em> part is a Hopfield-style
+          <strong>energy landscape</strong> &mdash; whose minima can be incoherent
+          <em>metastable mixtures</em>. Its <em>skew</em> part is a <strong>circulation field</strong>
+          on that landscape. From the symmetric part we read off three
+          <em>stability measures</em> that strongly correlate with external quality metrics — a
+          <strong>diagnostic for when attention is stuck</strong>. The circulation knob is then a natural
+          consequence: amplify it to escape the stuck state.
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== WHY ============================== -->
+    <section class="section section-tight">
+      <div class="container is-max-desktop content">
+        <h2 class="title is-3">Why? &mdash; The Metastable-Mixture Problem</h2>
+        <p>
+          Diffusion models often blend incompatible features — materials mixed across distinct objects,
+          anatomically implausible structures, attribute leakage. The culprit is the same global
+          connectivity in attention that <em>helps</em> compositional generation: it can also <em>settle into
+            incoherent combinations</em> of distinct patterns.
+        </p>
+        <blockquote>
+          Most prior analyses operate at a <strong>token-wise</strong> level — treating attention as
+          retrieval and reading off a single token at a time. That view misses the <em>interaction
+            dynamics</em> encoded by the attention matrix itself: how features collectively settle, and
+          whether they settle into <em>fixed points</em> or <em>cycles</em>.
+        </blockquote>
+        <p>
+          We take an <strong>associative-memory</strong> view of $\mathbf{Q}\mathbf{K}^\top$, building on
+          the observation that transformer self-attention approximates the update rule of a modern Hopfield
+          network. From this lens, spurious mixing is <em>entrapment in metastable states</em> — local
+          energy minima where the model rests on an incoherent superposition of patterns.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== ASSOCIATIVE MEMORY VIEW (Figure 2) ============================== -->
+    <section class="section hero is-light section-tight">
+      <div class="container is-max-desktop content">
+        <h2 class="title is-3">Associative Memory View of Self-Attention</h2>
+        <p>
+          Treat the input features $\mathbf{X}\in\mathbb{R}^{L\times d_{\rm in}}$ as a collection of
+          $d_{\rm in}$ feature vectors $\boldsymbol{x}^{(i)}\in\mathbb{R}^L$. The pre-softmax attention
+          $\mathbf{Q}\mathbf{K}^\top = \mathbf{X}\mathbf{W}\mathbf{X}^\top$ then reads as a
+          <strong>pairwise association strength</strong> between feature pairs $(i,j)$ — the natural object
+          in a Hopfield-style associative memory.
+        </p>
+
+        <div class="concept-fig">
+          <img src="static/images/concept_decomposition.png"
+            alt="Associative memory framework: (a) input features as vectors, (b) interaction matrix W, (c) decomposition of QK^T into symmetric + skew, (d) circulation perturbs metastable mixtures." />
+        </div>
+        <p class="concept-caption">
+          <strong>(a)&ndash;(b)</strong> Inputs as feature vectors; learned interaction matrix $\mathbf{W}$
+          encodes association strength between pairs.
+          <strong>(c)</strong> $\mathbf{Q}\mathbf{K}^\top$ decomposes into a <em>symmetric</em> part (static
+          energy landscape governing stability) and a <em>skew-symmetric</em> part (circulation, a
+          directional force).
+          <strong>(d)</strong> Standard retrieval can settle into <em>metastable mixtures</em> — e.g., the
+          incoherent &ldquo;three legs&rdquo; configuration; amplifying the skew component injects circulation
+          that <em>perturbs</em> the metastable state and restores coherence.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== DECOMPOSITION ============================== -->
+    <section class="section section-tight">
+      <div class="container is-max-desktop content">
+        <h2 class="title is-3">Symmetric / Skew Decomposition</h2>
+        <p>
+          Every pre-softmax attention matrix uniquely decomposes:
+        </p>
+        <div class="equation-box has-text-centered">
+          $\mathbf{Q}\mathbf{K}^\top \;=\;
+          \underbrace{\tfrac{1}{2}(\mathbf{Q}\mathbf{K}^\top+\mathbf{K}\mathbf{Q}^\top)}_{\text{symmetric }
+          \mathbf{X}\mathbf{S}\mathbf{X}^\top \text{ (energy)}}
+          \;+\; \underbrace{\tfrac{1}{2}(\mathbf{Q}\mathbf{K}^\top-\mathbf{K}\mathbf{Q}^\top)}_{\text{skew }
+          \mathbf{X}\mathbf{N}\mathbf{X}^\top \text{ (circulation)}}.$
+        </div>
+        <ul>
+          <li><strong>Symmetric part $\mathbf{S}$</strong> &mdash; defines a Hopfield-style <em>energy</em>
+            $E_{\mathbf{X}}(\xi)$ on retrieved features $\xi$. Its local minima are the stable attractors;
+            some of those minima are <em>incoherent metastable mixtures</em>.</li>
+          <li><strong>Skew part $\mathbf{N}$</strong> &mdash; satisfies $\mathbf{u}^\top\mathbf{N}\mathbf{u}=0$
+            for every $\mathbf{u}$, so it contributes <em>nothing to the energy</em>. Instead it acts as a
+            directional <em>circulation</em> field on top of the landscape — and, by classical asymmetric-Hopfield
+            results, increasing it exponentially reduces the number of stable attractors.</li>
+        </ul>
+        <p>
+          This split cleanly separates <em>what is stable</em> (read from $\mathbf{S}$) from <em>what perturbs
+            the stable structure</em> (read from $\mathbf{N}$).
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== HOPFIELD STABILITY MEASURES ============================== -->
+    <section class="section hero is-light section-tight">
+      <div class="container is-max-desktop content">
+        <h2 class="title is-3">Hopfield Stability Measures</h2>
+        <p>
+          From the symmetric energy $E_{\mathbf{X}}(\xi)$ and the induced local field
+          $\boldsymbol{h}_{\mathbf{X}}(\xi)$ we read off three complementary diagnostics, each capturing a
+          different aspect of how settled the retrieval is:
+        </p>
+        <ul>
+          <li><strong>Hopfield energy</strong> $E_{\mathbf{X}}$ &mdash; global self-consistency of the retrieved
+            configuration. Lower is more coherent.</li>
+          <li><strong>Instability fraction</strong> $r_{\mathbf{X}}$ &mdash; share of features in local conflict (sign
+            disagreement between $\xi$ and its driving field).</li>
+          <li><strong>Alignment score</strong> $\mathbf{Align}_{\mathbf{X}}$ &mdash; mean directional agreement between
+            $\xi$ and $\boldsymbol{h}_{\mathbf{X}}(\xi)$.</li>
+        </ul>
+        <p>
+          These three are <em>internal</em> — computed purely from the model's own attention — and together
+          they distinguish coherent retrievals from metastable mixtures.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== CORRELATION EVIDENCE (Table 1, full width) ============================== -->
+    <section class="section section-tight">
+      <div class="container is-max-desktop content">
+        <h2 class="title is-3">The Stability Measures Track External Quality</h2>
+        <p>
+          Spearman rank correlation $\rho$ between the three internal stability measures
+          (computed at each block of the SDXL UNet) and the standard external metrics, over 1K MSCOCO
+          prompts. The pattern is consistent and intuitive:
+        </p>
+        <ul>
+          <li><strong>Aesthetic Score</strong> &mdash; positively correlates with stability at every depth
+            (more coherent &rArr; higher quality).</li>
+          <li><strong>LPIPS Diversity</strong> &mdash; inversely correlates with stability — metastable
+            mixtures <em>are</em> the source of diversity (and of hallucinations).</li>
+          <li><strong>CLIPScore / ImageReward</strong> &mdash; depth-dependent, with strongest signal in the
+            Down and Up blocks.</li>
+        </ul>
+
+        <div class="corr-wrap">
+          <table class="corr-table">
+            <thead>
+              <tr>
+                <th rowspan="2">Metric&nbsp;A&nbsp;\&nbsp;Measure&nbsp;B</th>
+                <th colspan="3">Down (UNet 0&ndash;47)</th>
+                <th colspan="3">Mid (48&ndash;67)</th>
+                <th colspan="3">Up (68&ndash;139)</th>
+                <th colspan="3">All</th>
+              </tr>
+              <tr>
+                <th>$-E_{\mathbf X}$</th>
+                <th>$r_{\mathbf X}$</th>
+                <th>$\mathbf{Align}_{\mathbf X}$</th>
+                <th>$-E_{\mathbf X}$</th>
+                <th>$r_{\mathbf X}$</th>
+                <th>$\mathbf{Align}_{\mathbf X}$</th>
+                <th>$-E_{\mathbf X}$</th>
+                <th>$r_{\mathbf X}$</th>
+                <th>$\mathbf{Align}_{\mathbf X}$</th>
+                <th>$-E_{\mathbf X}$</th>
+                <th>$r_{\mathbf X}$</th>
+                <th>$\mathbf{Align}_{\mathbf X}$</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Aesthetic&nbsp;Score</td>
+                <td class="pos-strong">+0.181</td>
+                <td class="pos-strong">&minus;0.162</td>
+                <td class="pos-strong">+0.151</td>
+                <td class="pos-strong">+0.207</td>
+                <td class="pos-strong">&minus;0.229</td>
+                <td class="pos-strong">+0.204</td>
+                <td class="pos-strong">+0.255</td>
+                <td class="pos-strong">&minus;0.255</td>
+                <td class="pos-strong">+0.280</td>
+                <td class="pos-strong">+0.265</td>
+                <td class="pos-strong">&minus;0.273</td>
+                <td class="pos-strong">+0.296</td>
+              </tr>
+              <tr>
+                <td>LPIPS&nbsp;Diversity</td>
+                <td>&minus;0.074</td>
+                <td class="neg-strong">+0.192</td>
+                <td class="neg-strong">&minus;0.194</td>
+                <td class="neg-strong">&minus;0.336</td>
+                <td class="neg-strong">+0.283</td>
+                <td class="neg-strong">&minus;0.250</td>
+                <td class="neg-strong">&minus;0.270</td>
+                <td class="neg-strong">+0.237</td>
+                <td class="neg-strong">&minus;0.238</td>
+                <td class="neg-strong">&minus;0.279</td>
+                <td class="neg-strong">+0.283</td>
+                <td class="neg-strong">&minus;0.297</td>
+              </tr>
+              <tr>
+                <td>CLIPScore</td>
+                <td>+0.040</td>
+                <td class="neg-strong">+0.155</td>
+                <td class="neg-strong">&minus;0.202</td>
+                <td class="neg-strong">&minus;0.158</td>
+                <td>+0.088</td>
+                <td>&minus;0.042</td>
+                <td>&minus;0.006</td>
+                <td>&minus;0.073</td>
+                <td class="pos-strong">+0.142</td>
+                <td>&minus;0.010</td>
+                <td>+0.030</td>
+                <td>&minus;0.014</td>
+              </tr>
+              <tr>
+                <td>ImageReward</td>
+                <td class="pos-strong">+0.129</td>
+                <td class="pos-strong">&minus;0.161</td>
+                <td class="pos-strong">+0.146</td>
+                <td class="neg-strong">&minus;0.168</td>
+                <td class="neg-strong">+0.102</td>
+                <td>&minus;0.090</td>
+                <td class="neg-strong">&minus;0.122</td>
+                <td class="neg-strong">+0.114</td>
+                <td class="neg-strong">&minus;0.192</td>
+                <td>&minus;0.074</td>
+                <td>+0.046</td>
+                <td>&minus;0.074</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="corr-legend">
+          <span><span class="swatch" style="background:#d8e6ff"></span> stability &harr; higher metric (positive
+            Hopfield correlation)</span>
+          <span><span class="swatch" style="background:#ffd9de"></span> stability &harr; lower metric (associated with
+            diversity/conflict)</span>
+        </div>
+        <p style="margin-top: 0.9rem;">
+          Aesthetic Score lights up the entire top row in blue — high coherence and high perceived quality
+          co-occur at every depth. LPIPS diversity is the mirror: it lights up the entire row in red,
+          confirming that <em>metastability is the source of diversity</em>. CLIP and ImageReward show the
+          same theme with depth-dependent signs. The framework is not just descriptive — the measures
+          are <strong>predictive</strong> of where quality lives.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== CIRCULATION KNOB (brief) ============================== -->
+    <section class="section hero is-light section-tight">
+      <div class="container is-max-desktop content">
+        <h2 class="title is-3">A Natural Consequence: Circulation as a Knob</h2>
+        <p>
+          The framework immediately suggests an intervention. Since $\mathbf{N}$ controls circulation
+          <em>without</em> altering the energy landscape, we modulate it by a scalar $\alpha$, then blend the
+          perturbed retrieval $\Xi_\alpha$ back into the baseline $\Xi$ with a second scalar $\beta$:
+        </p>
+        <div class="equation-box has-text-centered">
+          $\Xi_\alpha \;\triangleq\; \Phi\!\left(\mathbf{X}\mathbf{S}\mathbf{X}^\top +
+          \alpha\,\mathbf{X}\mathbf{N}\mathbf{X}^\top\right)\mathbf{X},
+          \qquad
+          \Xi_{\rm blended} \;\triangleq\; \Xi + \beta\,(\Xi_\alpha - \Xi).$
+        </div>
+        <p>
+          No retraining, no architectural change. The intervention is regime-dependent: on
+          <em>Unstable</em> (low Alignment) samples it breaks spurious mixtures and improves quality;
+          on <em>Stable</em> samples it injects benign variation. Quantitative tables and the
+          $\alpha{\times}\beta$ operating curve are in the
+          <a href="https://github.com/hyeon-cho/Attention-Symmetric-Decomposition" target="_blank">paper / code
+            repo</a>;
+          below we show the regime-dependent qualitative behavior.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== FIGURE 6 (QUALITATIVE) ============================== -->
+    <section class="section section-tight">
+      <div class="container is-max-desktop content">
+        <h2 class="title is-3">Qualitative Comparison</h2>
+        <p>
+          Five Unstable baselines (left) and five Stable baselines (right). Top row is the baseline;
+          bottom row is the same prompt with our skew-perturbation applied. On <strong>Unstable</strong>
+          samples the perturbation breaks spurious mixtures and yields cleaner, object-centric structure.
+          On <strong>Stable</strong> samples the same perturbation injects local variation (texture,
+          composition) — illustrating the operating-point trade-off.
+        </p>
+
+        <div class="qual-wrap">
+          <table class="qual-table">
+            <tr>
+              <th class="qual-row-label"><span>Baseline</span></th>
+              <td class="qcell"><img src="static/images/figure6/f6_uns1_base.jpg" alt="Unstable baseline 1"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_uns2_base.jpg" alt="Unstable baseline 2"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_uns3_base.jpg" alt="Unstable baseline 3"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_uns4_base.jpg" alt="Unstable baseline 4"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_uns5_base.jpg" alt="Unstable baseline 5"
+                  loading="lazy" /></td>
+              <td class="qual-divider"></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta1_base.jpg" alt="Stable baseline 1"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta2_base.jpg" alt="Stable baseline 2"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta3_base.jpg" alt="Stable baseline 3"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta4_base.jpg" alt="Stable baseline 4"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta5_base.jpg" alt="Stable baseline 5"
+                  loading="lazy" /></td>
+            </tr>
+            <tr>
+              <th class="qual-row-label"><span>Proposed</span></th>
+              <td class="qcell"><img src="static/images/figure6/f6_uns1_prop.jpg" alt="Unstable + skew perturbation 1"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_uns2_prop.jpg" alt="Unstable + skew perturbation 2"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_uns3_prop.jpg" alt="Unstable + skew perturbation 3"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_uns4_prop.jpg" alt="Unstable + skew perturbation 4"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_uns5_prop.jpg" alt="Unstable + skew perturbation 5"
+                  loading="lazy" /></td>
+              <td class="qual-divider"></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta1_prop.jpg" alt="Stable + skew perturbation 1"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta2_prop.jpg" alt="Stable + skew perturbation 2"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta3_prop.jpg" alt="Stable + skew perturbation 3"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta4_prop.jpg" alt="Stable + skew perturbation 4"
+                  loading="lazy" /></td>
+              <td class="qcell"><img src="static/images/figure6/f6_sta5_prop.jpg" alt="Stable + skew perturbation 5"
+                  loading="lazy" /></td>
+            </tr>
+            <tr class="qual-group-row">
+              <td></td>
+              <td colspan="5">Skew Perturbation on <strong>Unstable</strong> Samples (Tab. 2)</td>
+              <td></td>
+              <td colspan="5">Skew Perturbation on <strong>Stable</strong> Samples</td>
+            </tr>
+          </table>
+        </div>
+
+        <p class="qual-caption">
+          <em>Left:</em> on unstable baselines, our intervention fixes spurious mixtures (extra limbs, blended objects,
+          fragmented compositions) and recovers a coherent, object-centric subject.
+          <em>Right:</em> on stable baselines, the same intervention injects benign variation in texture / background /
+          composition — sometimes useful, sometimes drift. This regime-dependent behavior is the operating-point
+          trade-off discussed in the paper.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== BIBTEX ============================== -->
+    <section class="section" id="BibTeX">
+      <div class="container is-max-desktop content">
+        <div class="bibtex-header" style="display:flex; align-items:center; gap:0.75rem;">
+          <h2 class="title" style="margin-bottom:0;">BibTeX</h2>
+          <button class="copy-bibtex-btn button is-small" onclick="copyBibTeX()" title="Copy BibTeX to clipboard">
+            <span class="icon"><i class="fas fa-copy"></i></span>
+            <span class="copy-text">Copy</span>
+          </button>
+        </div>
+        <pre id="bibtex-code"><code>@inproceedings{
+  coming soon...
+}</code></pre>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="columns is-centered">
+        <div class="column is-8">
+          <div class="content">
+            <p>
+              This page was built using the
+              <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank">Academic Project
+                Page Template</a>,
+              adapted from the <a href="https://nerfies.github.io" target="_blank">Nerfies</a> project page.
+              You are free to borrow the source of this site; please link back to this page in the footer.
+              This website is licensed under a
+              <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative Commons
+                Attribution-ShareAlike 4.0 International License</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function copyBibTeX() {
+      const code = document.getElementById('bibtex-code').innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = document.querySelector('.copy-bibtex-btn .copy-text');
+        if (!btn) return;
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      });
+    }
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    window.addEventListener('scroll', () => {
+      const btn = document.querySelector('.scroll-to-top');
+      if (!btn) return;
+      btn.style.display = window.scrollY > 400 ? 'flex' : 'none';
+    });
+  </script>
+
+</body>
+
+</html>
