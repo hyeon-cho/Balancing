@@ -1,142 +1,128 @@
-window.HELP_IMPROVE_VIDEOJS = false;
+(() => {
+  'use strict';
 
-// More Works Dropdown Functionality
-function toggleMoreWorks() {
-    const dropdown = document.getElementById('moreWorksDropdown');
-    const button = document.querySelector('.more-works-btn');
-    
-    if (dropdown.classList.contains('show')) {
-        dropdown.classList.remove('show');
-        button.classList.remove('active');
-    } else {
-        dropdown.classList.add('show');
-        button.classList.add('active');
-    }
-}
+  const header = document.querySelector('.site-header');
+  const navigation = document.querySelector('.nav-shell');
+  const navLinks = document.querySelector('.nav-links');
+  const sectionLinks = [...navigation.querySelectorAll('a[href^="#"]')];
+  const sections = ['top', 'overview', 'method', 'evidence', 'results']
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let currentLink = null;
+  let readyFrame;
+  let ticking = false;
 
-// Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
-    const container = document.querySelector('.more-works-container');
-    const dropdown = document.getElementById('moreWorksDropdown');
-    const button = document.querySelector('.more-works-btn');
-    
-    if (container && !container.contains(event.target)) {
-        dropdown.classList.remove('show');
-        button.classList.remove('active');
-    }
-});
+  function placeLens(target) {
+    if (!target) return;
+    const container = navigation.getBoundingClientRect();
+    const bounds = target.getBoundingClientRect();
+    navigation.style.setProperty('--lens-x', `${bounds.left - container.left - navigation.clientLeft}px`);
+    navigation.style.setProperty('--lens-y', `${bounds.top - container.top - navigation.clientTop}px`);
+    navigation.style.setProperty('--lens-width', `${bounds.width}px`);
+    navigation.style.setProperty('--lens-height', `${bounds.height}px`);
+  }
 
-// Close dropdown on escape key
-document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape') {
-        const dropdown = document.getElementById('moreWorksDropdown');
-        const button = document.querySelector('.more-works-btn');
-        dropdown.classList.remove('show');
-        button.classList.remove('active');
-    }
-});
+  function keepCurrentLinkVisible(target) {
+    if (!target || navLinks.scrollWidth <= navLinks.clientWidth) return;
+    const desired = target.offsetLeft - (navLinks.clientWidth - target.offsetWidth) / 2;
+    navLinks.scrollTo({ left: Math.max(0, desired), behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+  }
 
-// Copy BibTeX to clipboard
-function copyBibTeX() {
-    const bibtexElement = document.getElementById('bibtex-code');
-    const button = document.querySelector('.copy-bibtex-btn');
-    const copyText = button.querySelector('.copy-text');
-    
-    if (bibtexElement) {
-        navigator.clipboard.writeText(bibtexElement.textContent).then(function() {
-            // Success feedback
-            button.classList.add('copied');
-            copyText.textContent = 'Cop';
-            
-            setTimeout(function() {
-                button.classList.remove('copied');
-                copyText.textContent = 'Copy';
-            }, 2000);
-        }).catch(function(err) {
-            console.error('Failed to copy: ', err);
-            // Fallback for older browsers
-            const textArea = document.createElement('textarea');
-            textArea.value = bibtexElement.textContent;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            
-            button.classList.add('copied');
-            copyText.textContent = 'Cop';
-            setTimeout(function() {
-                button.classList.remove('copied');
-                copyText.textContent = 'Copy';
-            }, 2000);
-        });
-    }
-}
+  function updateHeader() {
+    header.classList.toggle('is-scrolled', window.scrollY > 24);
+    const scrollPadding = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+    const boundary = Math.max(header.getBoundingClientRect().bottom + 36, scrollPadding + 2);
+    const atEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 5;
+    let current = '#top';
 
-// Scroll to top functionality
-function scrollToTop() {
-    window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
+    sections.forEach(section => {
+      if (section.getBoundingClientRect().top <= boundary) current = `#${section.id}`;
     });
-}
+    if (atEnd) current = '#results';
 
-// Show/hide scroll to top button
-window.addEventListener('scroll', function() {
-    const scrollButton = document.querySelector('.scroll-to-top');
-    if (window.pageYOffset > 300) {
-        scrollButton.classList.add('visible');
-    } else {
-        scrollButton.classList.remove('visible');
-    }
-});
-
-// Video carousel autoplay when in view
-function setupVideoCarouselAutoplay() {
-    const carouselVideos = document.querySelectorAll('.results-carousel video');
-    
-    if (carouselVideos.length === 0) return;
-    
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            const video = entry.target;
-            if (entry.isIntersecting) {
-                // Video is in view, play it
-                video.play().catch(e => {
-                    // Autoplay failed, probably due to browser policy
-                    console.log('Autoplay prevented:', e);
-                });
-            } else {
-                // Video is out of view, pause it
-                video.pause();
-            }
-        });
-    }, {
-        threshold: 0.5 // Trigger when 50% of the video is visible
+    sectionLinks.forEach(link => {
+      if (link.getAttribute('href') === current) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
     });
-    
-    carouselVideos.forEach(video => {
-        observer.observe(video);
-    });
-}
 
-$(document).ready(function() {
-    // Check for click events on the navbar burger icon
-
-    var options = {
-		slidesToScroll: 1,
-		slidesToShow: 1,
-		loop: true,
-		infinite: true,
-		autoplay: true,
-		autoplaySpeed: 5000,
+    const nextLink = sectionLinks.find(link => link.getAttribute('href') === current);
+    if (nextLink && nextLink !== currentLink) {
+      currentLink = nextLink;
+      placeLens(currentLink);
+      keepCurrentLinkVisible(currentLink);
     }
+    ticking = false;
+  }
 
-	// Initialize all div with carousel class
-    var carousels = bulmaCarousel.attach('.carousel', options);
-	
-    bulmaSlider.attach();
-    
-    // Setup video autoplay for carousel
-    setupVideoCarouselAutoplay();
+  function refreshNavigation() {
+    cancelAnimationFrame(readyFrame);
+    navigation.classList.remove('is-ready');
+    updateHeader();
+    placeLens(currentLink);
+    navigation.classList.add('has-lens');
+    readyFrame = requestAnimationFrame(() => navigation.classList.add('is-ready'));
+  }
 
-})
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      requestAnimationFrame(updateHeader);
+      ticking = true;
+    }
+  }, { passive: true });
+  window.addEventListener('resize', refreshNavigation);
+
+  refreshNavigation();
+  if ('ResizeObserver' in window) {
+    const observer = new ResizeObserver(refreshNavigation);
+    [navigation, ...sectionLinks].forEach(element => observer.observe(element));
+  }
+  if (document.fonts) document.fonts.ready.then(refreshNavigation);
+
+  const copyButton = document.querySelector('[data-copy-bibtex]');
+  const bibtex = document.getElementById('bibtex-code');
+  const copyStatus = document.getElementById('copy-status');
+
+  function fallbackCopy(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    textarea.remove();
+    return copied;
+  }
+
+  if (copyButton && bibtex) {
+    copyButton.addEventListener('click', async () => {
+      const text = bibtex.textContent.trim();
+      let copied = false;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        } else {
+          copied = fallbackCopy(text);
+        }
+      } catch {
+        copied = fallbackCopy(text);
+      }
+
+      if (!copied) {
+        copyStatus.textContent = 'Copy failed. Select the BibTeX text manually.';
+        return;
+      }
+
+      copyButton.classList.add('copied');
+      copyButton.textContent = 'Copied';
+      copyStatus.textContent = 'BibTeX copied to clipboard.';
+      window.setTimeout(() => {
+        copyButton.classList.remove('copied');
+        copyButton.textContent = 'Copy';
+      }, 1600);
+    });
+  }
+})();
